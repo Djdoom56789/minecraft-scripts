@@ -1,0 +1,23 @@
+screen.Color=Color
+screen.Effects=Effects
+
+option.STYLE=Style
+value.STYLE.0=Emerald
+value.STYLE.1=Night Vision
+value.STYLE.2=Terminal
+option.STYLE.comment=Emerald keeps some original color, Night Vision is monochrome green, Terminal is hard phosphor green.
+option.GREEN_STRENGTH=Green Strength
+option.GREEN_STRENGTH.comment=How strongly the green grade is applied. 0 shows the original colors.
+option.SATURATION=Saturation
+option.BRIGHTNESS=Brightness
+option.CONTRAST=Contrast
+option.GAMMA=Gamma
+option.VIGNETTE=Vignette
+option.VIGNETTE_STRENGTH=Vignette Strength
+option.GLOW=Glow
+option.GLOW.comment=Soft bloom around bright areas such as torches and the sky.
+option.GLOW_STRENGTH=Glow Strength
+option.SCANLINES=Scanlines
+option.SCANLINE_STRENGTH=Scanline Strength
+option.GRAIN=Film Grain
+option.GRAIN_STRENGTH=Grain Strength
