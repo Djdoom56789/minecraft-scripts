@@ -1,9 +1,13 @@
 #version 120
 
 /*
- * Green Shaders - single full-screen pass that grades the vanilla image green.
+ * Green Shaders - full-screen pass that grades the image green.
  * Works on OptiFine and Iris; every option below appears in the in-game
  * shader options menu.
+ *
+ * Entities and the held item are drawn by gbuffers_entities / gbuffers_hand,
+ * which mark their pixels in colortex2. Those pixels get only GEAR_GRADE of
+ * the green grade so armor and weapon materials stay distinguishable.
  */
 
 // 0 = Emerald tint, 1 = Night vision (monochrome green), 2 = Terminal (phosphor green)
@@ -23,7 +27,13 @@
 //#define GRAIN
 #define GRAIN_STRENGTH 0.04 // [0.02 0.04 0.06 0.08 0.12]
 
+#define PROTECT_GEAR
+#define GEAR_GRADE 0.30 // [0.00 0.10 0.20 0.30 0.40 0.50 0.75 1.00]
+
+const vec4 colortex2ClearColor = vec4(0.0, 0.0, 0.0, 0.0);
+
 uniform sampler2D colortex0;
+uniform sampler2D colortex2;
 uniform float viewWidth;
 uniform float viewHeight;
 uniform float frameTimeCounter;
@@ -50,7 +60,7 @@ vec3 glow(vec2 uv) {
     return sum / 9.0;
 }
 
-vec3 applyStyle(vec3 color) {
+vec3 applyStyle(vec3 color, float strength) {
     float luma = luminance(color);
 #if STYLE == 0
     // Emerald: push the image toward green while keeping some original hue.
@@ -63,7 +73,7 @@ vec3 applyStyle(vec3 color) {
     // Terminal: hard phosphor green with crushed blacks.
     vec3 graded = vec3(0.20, 1.00, 0.30) * smoothstep(0.05, 0.85, luma);
 #endif
-    return mix(color, graded, GREEN_STRENGTH);
+    return mix(color, graded, strength);
 }
 
 vec3 adjust(vec3 color) {
@@ -85,7 +95,11 @@ void main() {
     color += glow(texcoord) * GLOW_STRENGTH;
 #endif
 
-    color = applyStyle(color);
+    float strength = GREEN_STRENGTH;
+#ifdef PROTECT_GEAR
+    strength *= mix(1.0, GEAR_GRADE, texture2D(colortex2, texcoord).r);
+#endif
+    color = applyStyle(color, strength);
     color = adjust(color);
 
 #ifdef SCANLINES

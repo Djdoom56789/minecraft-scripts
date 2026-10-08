@@ -8,6 +8,10 @@ value.STYLE.2=Terminal
 option.STYLE.comment=Emerald keeps some original color, Night Vision is monochrome green, Terminal is hard phosphor green.
 option.GREEN_STRENGTH=Green Strength
 option.GREEN_STRENGTH.comment=How strongly the green grade is applied. 0 shows the original colors.
+option.PROTECT_GEAR=Protect PvP Colors
+option.PROTECT_GEAR.comment=Players, armor, mobs, dropped items and your held item get a lighter green grade so iron, gold, diamond and netherite stay easy to tell apart.
+option.GEAR_GRADE=Gear Green Amount
+option.GEAR_GRADE.comment=How much of the green grade gear receives when Protect PvP Colors is on. 0 = original colors.
 option.SATURATION=Saturation
 option.BRIGHTNESS=Brightness
 option.CONTRAST=Contrast
