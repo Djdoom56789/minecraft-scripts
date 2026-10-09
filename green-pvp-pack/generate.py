@@ -16,6 +16,7 @@ Design rules, so PvP gear stays readable at a glance:
     the totem) only add green on top for part of each loop.
 
 Usage: python3 generate.py [output_dir]   (default: ./pack)
+To make the rest of the game green as well, see greenify.py.
 Requires Pillow.
 """
 
@@ -590,15 +591,16 @@ def armor_icon(rows, pal, chainmail=False):
         for (x, y), (color, p) in list(sp.px.items()):
             if p is pal and color == pal["mid"] and (x + y) % 2 == 0:
                 sp.put(x, y, pal["dark"], pal)
-    return sp.image()
+    return sp
 
 
 def leather_icon(rows):
-    """Leather is dye-tinted, so green goes in the untinted overlay."""
+    """Leather is dye-tinted, so green goes in the untinted overlay.
+    Returns (base image, overlay sprite)."""
     pal = ARMOR["leather"][1]
     base_rows = ["".join("M" if c in GREEN_CODES - {"k"} else ("o" if c == "k" else c) for c in r) for r in rows]
     overlay_rows = ["".join(c if c in GREEN_CODES else "." for c in r) for r in rows]
-    return from_ascii(base_rows, pal).image(), from_ascii(overlay_rows, pal).image()
+    return from_ascii(base_rows, pal).image(), from_ascii(overlay_rows, pal)
 
 
 # --------------------------------------------------------------------------
@@ -915,6 +917,233 @@ def totem_aura(frames=24):
 
     return effect
 
+
+# --------------------------------------------------------------------------
+# Elytra
+# --------------------------------------------------------------------------
+
+ELYTRA = palette("#acdcc3", "#6fa58b", "#3d6c58", "#10261d", shine="#e0fff0")
+
+ELYTRA_ROWS = [
+    "................",
+    "..ooooo..ooooo..",
+    ".oLLLMMooMMLLLo.",
+    ".oLeLMMDDMMLeLo.",
+    ".oLLeMMDDMMeLLo.",
+    ".oLMLeMDDMeLMLo.",
+    "..oMMMeDDeMMMo..",
+    "..oLMMMggMMMLo..",
+    "..oLMMDooDMMLo..",
+    "...oMMDooDMMo...",
+    "...oMDo..oDMo...",
+    "...oMDo..oDMo...",
+    "....oDo..oDo....",
+    "....oo....oo....",
+    "................",
+    "................",
+]
+
+# Torn spots for the broken elytra.
+ELYTRA_TEARS = {(3, 4), (4, 5), (12, 4), (11, 5), (5, 10), (10, 11), (4, 12), (11, 12), (2, 2), (13, 3)}
+
+
+def elytra_icon():
+    return from_ascii(ELYTRA_ROWS, ELYTRA)
+
+
+def broken_elytra_icon():
+    """Torn, faded wings with no animation, so a broken elytra is obvious."""
+    sp = from_ascii(ELYTRA_ROWS, ELYTRA)
+    for x, y in ELYTRA_TEARS:
+        sp.px.pop((x, y), None)
+    for (x, y), (color, pal) in list(sp.px.items()):
+        sp.put(x, y, mix(color, (90, 90, 90, 255), 0.45), pal)
+    return sp.image()
+
+
+def elytra_entity():
+    """64x32 wing texture. Each wing is a 10x20x2 box at UV (22, 0)."""
+    img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+    for name, (u, v, w, h) in cube_faces(22, 0, 10, 20, 2).items():
+        for fy in range(h):
+            for fx in range(w):
+                if name in ("front", "back"):
+                    t = fy / (h - 1)
+                    color = mix(ELYTRA["light"], ELYTRA["dark"], t * 0.9)
+                    # Veins fanning out from the shoulder.
+                    for k in (0.18, 0.4, 0.7):
+                        if fx == round(fy * k) or (name == "back" and w - 1 - fx == round(fy * k)):
+                            color = GREEN["light"] if fy % 4 else GREEN["glow"]
+                    if fx in (0, w - 1) or fy in (0, h - 1):
+                        color = ELYTRA["outline"] if fy == h - 1 else mix(ELYTRA["dark"], GREEN["dark"], 0.5)
+                    # Ragged trailing edge.
+                    if fy >= h - 3 and (fx + fy) % 3 == 0:
+                        continue
+                else:
+                    color = ELYTRA["mid"] if fy % 2 else GREEN["dark"]
+                img.putpixel((u + fx, v + fy), color)
+    return img
+
+
+# --------------------------------------------------------------------------
+# Obsidian and crying obsidian (animated block textures)
+# --------------------------------------------------------------------------
+
+# Dark green-black, darkest to lightest facet.
+OBSIDIAN_SHADES = [rgba(c) for c in ("#081510", "#0d2016", "#132c1e", "#1b3d2a")]
+
+
+def wrap_dist(a, b):
+    d = abs(a - b) % 16
+    return min(d, 16 - d)
+
+
+def obsidian_facets(seed):
+    """Tileable crystal facets: each pixel takes the shade of its nearest
+    seed point (wrapping at the edges), with lighter facet borders."""
+    rng = random.Random(seed)
+    points = [(rng.uniform(0, 16), rng.uniform(0, 16), rng.randrange(len(OBSIDIAN_SHADES) - 1)) for _ in range(9)]
+    grid = {}
+    for y in range(16):
+        for x in range(16):
+            dists = sorted(
+                (wrap_dist(x + 0.5, px) ** 2 + wrap_dist(y + 0.5, py) ** 2, shade) for px, py, shade in points)
+            (d1, shade), (d2, _) = dists[0], dists[1]
+            edge = d2 ** 0.5 - d1 ** 0.5 < 0.8
+            grid[(x, y)] = OBSIDIAN_SHADES[min(shade + (1 if edge else 0), len(OBSIDIAN_SHADES) - 1)]
+    return grid
+
+
+def vein_path(seed, length):
+    """A wandering, wrapping line of pixels for glowing veins."""
+    rng = random.Random(seed)
+    x, y = rng.randrange(16), rng.randrange(16)
+    dx, dy = rng.choice(((1, 1), (1, -1), (-1, 1), (1, 0), (0, 1)))
+    path = []
+    for _ in range(length):
+        if (x, y) not in path:
+            path.append((x, y))
+        if rng.random() < 0.35:
+            dx, dy = rng.choice(((1, 1), (1, -1), (-1, 1), (1, 0), (0, 1), (-1, 0)))
+        x, y = (x + dx) % 16, (y + dy) % 16
+    return path
+
+
+def obsidian_strip(frames=32):
+    """Obsidian: dark green-black crystal with veins that a green pulse
+    travels along. Tiles seamlessly."""
+    facets = obsidian_facets("obsidian")
+    veins = vein_path("obsidian-vein-a", 22) + vein_path("obsidian-vein-b", 14)
+    strip = Image.new("RGBA", (16, 16 * frames))
+    for f in range(frames):
+        for (x, y), color in facets.items():
+            strip.putpixel((x, y + 16 * f), color)
+        for i, (x, y) in enumerate(veins):
+            phase = (f / frames - i / len(veins)) % 1.0
+            glow = max(0.0, math.cos(2 * math.pi * phase)) ** 6
+            strip.putpixel((x, y + 16 * f), mix(GREEN["dark"], GREEN["glow"], 0.15 + 0.85 * glow))
+    return strip
+
+
+def crying_obsidian_strip(frames=32):
+    """Crying obsidian: same crystal, but bright green tears run down it,
+    so it never looks like plain obsidian."""
+    facets = obsidian_facets("crying-obsidian")
+    cracks = vein_path("crying-crack", 10)
+    tears = [(2, 0, 1.0), (6, 5, 1.5), (10, 9, 1.0), (13, 3, 2.0)]  # column, start row, speed
+    strip = Image.new("RGBA", (16, 16 * frames))
+    for f in range(frames):
+        for (x, y), color in facets.items():
+            strip.putpixel((x, y + 16 * f), color)
+        for x, y in cracks:
+            strip.putpixel((x, y + 16 * f), GREEN["mid"])
+        for col, start, speed in tears:
+            head = (start + f * speed * 16 / frames) % 16
+            for trail, tone in enumerate(("glow", "light", "mid")):
+                y = int(head - trail) % 16
+                strip.putpixel((col, y + 16 * f), GREEN[tone])
+            strip.putpixel((col, start + 16 * f), GREEN["light"])  # the source of each tear
+    return strip
+
+
+# --------------------------------------------------------------------------
+# End crystal
+# --------------------------------------------------------------------------
+
+END_GLASS = palette("#c8ffd8", "#7dea9a", "#3fae63", "#0e3a1c", shine="#ffffff")
+
+
+def end_crystal_icon():
+    """Item icon: a green glass frame around an emerald core, on an
+    obsidian base."""
+    sp = Sprite()
+    cx, cy = 7.5, 6.0
+    for y in range(16):
+        for x in range(16):
+            r = abs(x - cx) + abs(y - cy)
+            if 5.0 <= r <= 6.0 and y <= 11:
+                sp.put(x, y, END_GLASS["light" if y < cy else "mid"], END_GLASS)
+            elif r <= 1.5:
+                sp.put(x, y, GREEN["glow"], GREEN)
+            elif r <= 3.0:
+                sp.put(x, y, GREEN["light" if (x + y) % 2 else "mid"], GREEN)
+    for x in range(3, 13):
+        for y in (12, 13):
+            sp.put(x, y, OBSIDIAN_SHADES[3 if y == 12 else 1], POMMEL)
+    for x in (5, 7, 8, 10):
+        sp.put(x, 12, GREEN["mid"], GREEN)
+    return sp.outline()
+
+
+def end_crystal_spin(frames=24):
+    """The core throbs and a glint runs around the glass frame."""
+    cx, cy = 7.5, 6.0
+
+    def effect(f, x, y, color, pal):
+        pulse = 0.5 - 0.5 * math.cos(2 * math.pi * f / frames)
+        if pal is GREEN:
+            return mix(color, (255, 255, 255, 255), 0.35 * pulse) if abs(x - cx) + abs(y - cy) <= 3 else color
+        if pal is END_GLASS:
+            angle = math.atan2(y - cy, x - cx) / (2 * math.pi) % 1.0
+            dist = min(abs(angle - f / frames), 1 - abs(angle - f / frames))
+            return mix(color, END_GLASS["shine"], max(0.0, 1 - dist * 8))
+        return color
+
+    return effect
+
+
+def end_crystal_entity():
+    """64x32 entity texture: outer glass cube (UV 0,0), core cube (UV 32,0)
+    and base (UV 0,16)."""
+    img = Image.new("RGBA", (64, 32), (0, 0, 0, 0))
+    for name, (u, v, w, h) in cube_faces(0, 0, 8, 8, 8).items():  # glass: frame only
+        for fy in range(h):
+            for fx in range(w):
+                edge = fx in (0, w - 1) or fy in (0, h - 1)
+                corner = fx in (0, w - 1) and fy in (0, h - 1)
+                if corner:
+                    img.putpixel((u + fx, v + fy), END_GLASS["shine"])
+                elif edge:
+                    img.putpixel((u + fx, v + fy), END_GLASS["light"] if (fx + fy) % 2 else END_GLASS["mid"])
+                elif (fx, fy) in ((2, 2), (3, 3), (5, 5)):
+                    img.putpixel((u + fx, v + fy), END_GLASS["light"])
+    for name, (u, v, w, h) in cube_faces(32, 0, 8, 8, 8).items():  # emerald core
+        for fy in range(h):
+            for fx in range(w):
+                ring = max(abs(fx - 3.5), abs(fy - 3.5))
+                tone = "glow" if ring <= 1 else ("light" if ring <= 2 else ("mid" if ring <= 3 else "dark"))
+                img.putpixel((u + fx, v + fy), GREEN[tone])
+    for name, (u, v, w, h) in cube_faces(0, 16, 12, 4, 12).items():  # obsidian base
+        for fy in range(h):
+            for fx in range(w):
+                color = OBSIDIAN_SHADES[(fx * 7 + fy * 3) % 3 + 1]
+                if name == "top" and (fx in (0, w - 1) or fy in (0, h - 1)):
+                    color = GREEN["dark"]
+                elif name in SIDES and fy == 1:
+                    color = GREEN["light"] if fx % 3 else GREEN["glow"]
+                img.putpixel((u + fx, v + fy), color)
+    return img
+
 # --------------------------------------------------------------------------
 # Output
 # --------------------------------------------------------------------------
@@ -935,13 +1164,13 @@ def build(root: Path) -> dict[str, Image.Image]:
         items[name] = img
         save(img, root, f"{item_dir}{name}.png")
 
-    def animated(name, strip):
+    def animated(name, strip, folder=item_dir):
         """Saves an animated texture; previews get the first frame and the strip."""
         items[name] = strip.crop((0, 0, 16, 16))
         items[f"anim:{name}"] = strip
-        save(strip, root, f"{item_dir}{name}.png")
+        save(strip, root, f"{folder}{name}.png")
         meta = {"animation": {"frametime": FRAME_TIME, "interpolate": True}}
-        (root / f"{item_dir}{name}.png.mcmeta").write_text(json.dumps(meta, indent=2) + "\n")
+        (root / f"{folder}{name}.png.mcmeta").write_text(json.dumps(meta, indent=2) + "\n")
 
     glint = weapon_glint()
     for material, pal in TOOL.items():
@@ -956,6 +1185,9 @@ def build(root: Path) -> dict[str, Image.Image]:
         animated(f"crossbow_{state}", render_strip(crossbow(state), 24, glint))
     item("arrow", arrow().image())
     animated("totem_of_undying", render_strip(totem(), 24, totem_aura()))
+    animated("elytra", render_strip(elytra_icon(), 24, glint))
+    item("broken_elytra", broken_elytra_icon())
+    animated("end_crystal", render_strip(end_crystal_icon(), 24, end_crystal_spin()))
     item("golden_apple", from_ascii(GOLDEN_APPLE_ROWS, TOOL["golden"]).image())
     item("ender_pearl", from_ascii(ENDER_PEARL_ROWS, PEARL).image())
 
@@ -964,11 +1196,10 @@ def build(root: Path) -> dict[str, Image.Image]:
             name = f"{material}_{piece}"
             if material == "leather":
                 base, overlay = leather_icon(rows)
-                item(name, base)
-                save(overlay, root, f"{item_dir}{name}_overlay.png")
-                items[f"{name}_overlay"] = overlay
+                item(name, base)  # dye-tinted, so it stays still; the green overlay animates
+                animated(f"{name}_overlay", render_strip(overlay, 24, glint))
             else:
-                item(name, armor_icon(rows, pal, chainmail=material == "chainmail"))
+                animated(name, render_strip(armor_icon(rows, pal, chainmail=material == "chainmail"), 24, glint))
 
         if material == "leather":
             l1, l2 = armor_layers(material, pal, no_green=True)
@@ -990,6 +1221,18 @@ def build(root: Path) -> dict[str, Image.Image]:
         items[f"worn:{material}"] = (l1, l2, o1, o2)
 
     save(shield(), root, "assets/minecraft/textures/entity/shield_base_nopattern.png")
+
+    wings = elytra_entity()
+    save(wings, root, "assets/minecraft/textures/entity/elytra.png")  # 1.21.1
+    save(wings, root, "assets/minecraft/textures/entity/equipment/wings/elytra.png")  # 1.21.2+
+    items["entity:elytra"] = wings
+    crystal = end_crystal_entity()
+    save(crystal, root, "assets/minecraft/textures/entity/end_crystal/end_crystal.png")
+    items["entity:end_crystal"] = crystal
+
+    block_dir = "assets/minecraft/textures/block/"
+    animated("obsidian", obsidian_strip(), block_dir)
+    animated("crying_obsidian", crying_obsidian_strip(), block_dir)
 
     icon = items["iron_sword"].resize((64, 64), Image.NEAREST)  # first frame
     save(icon, root, "pack.png")

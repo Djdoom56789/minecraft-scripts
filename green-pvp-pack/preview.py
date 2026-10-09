@@ -65,6 +65,7 @@ def main(out_path):
         [f"{m}_axe" for m in generate.TOOL],
         ["mace", "trident", "bow", "bow_pulling_2", "crossbow_standby", "crossbow_arrow"],
         ["arrow", "totem_of_undying", "golden_apple", "ender_pearl", "crossbow_firework", "bow_pulling_0"],
+        ["elytra", "broken_elytra", "end_crystal", "obsidian", "crying_obsidian", "bow_pulling_1"],
     ]
     for piece in generate.ARMOR_ICONS:
         rows.append([f"{m}_{piece}" for m in generate.ARMOR])
@@ -97,8 +98,11 @@ def main(out_path):
 def animation_gif(items, out_path):
     """Loops every animated texture together (without the game's frame interpolation)."""
     names = [k[len("anim:"):] for k in items if k.startswith("anim:")]
-    order = ["totem_of_undying", "trident"] + [n for n in names if n.endswith("_sword")] + \
-            [n for n in names if n.endswith("_axe")] + ["mace", "bow", "bow_pulling_2", "crossbow_arrow"]
+    order = ["totem_of_undying", "trident", "end_crystal", "obsidian", "crying_obsidian", "elytra"] + \
+            [n for n in names if n.endswith("_sword")] + [n for n in names if n.endswith("_axe")] + \
+            ["mace", "bow", "bow_pulling_2", "crossbow_arrow"] + \
+            [f"{m}_chestplate" for m in ("chainmail", "iron", "golden", "diamond", "netherite")] + \
+            ["leather_chestplate_overlay"]
     names = [n for n in order if f"anim:{n}" in items]
     strips = {n: items[f"anim:{n}"] for n in names}
     counts = {n: s.height // 16 for n, s in strips.items()}
