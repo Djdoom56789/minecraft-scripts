@@ -12,6 +12,8 @@ Design rules, so PvP gear stays readable at a glance:
     vanilla, and chainmail keeps its see-through mesh.
   * Item shapes (sword vs. axe vs. mace...) match vanilla silhouettes.
   * Potions and tipped arrows are left alone: their colors encode the effect.
+  * Animations (green glint on weapons, lightning on the trident, aura on
+    the totem) only add green on top for part of each loop.
 
 Usage: python3 generate.py [output_dir]   (default: ./pack)
 Requires Pillow.
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import colorsys
 import json
+import math
 import random
 import sys
 from pathlib import Path
@@ -104,13 +107,16 @@ LEATHER_DEFAULT_TINT = (0xA0, 0x65, 0x40)
 
 MACE = palette("#dbe2dd", "#9ba8a0", "#5f6a63", "#222826", shine="#ffffff")
 TRIDENT = palette("#aef3dc", "#53b99c", "#2b7b67", "#0d3329", shine="#e8fff7")
-TOTEM = palette("#ffe98a", "#e2b33a", "#9c6f17", "#4a3005", shine="#fff7d1")
 PEARL = palette("#b8f0d0", "#3aa071", "#0f4a3a", "#062019", shine="#ffffff")
 SHIELD_WOOD = palette("#8a6034", "#6d4a26", "#4f3519", "#24170a")
 
 # --------------------------------------------------------------------------
 # Sprite helpers
 # --------------------------------------------------------------------------
+
+
+# Marks pixels added by Sprite.outline(), so animations can tell edges apart.
+OUTLINE: dict = {}
 
 
 class Sprite:
@@ -128,12 +134,12 @@ class Sprite:
     def outline(self):
         added = {}
         for (x, y), (_, pal) in self.px.items():
-            if pal is None:
+            if pal is None or pal is OUTLINE:
                 continue
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 n = (x + dx, y + dy)
                 if 0 <= n[0] < self.w and 0 <= n[1] < self.h and n not in self.px and n not in added:
-                    added[n] = (pal["outline"], None)
+                    added[n] = (pal["outline"], OUTLINE)
         self.px.update(added)
         return self
 
@@ -416,24 +422,47 @@ def crossbow(state: str):
 # Misc PvP items
 # --------------------------------------------------------------------------
 
+# Totem of undying drawn from the player's skin: gold crown with four gems,
+# green face, black suit with white collar, red tie and yellow buttons,
+# white cuffs and green hands, in the totem's arms-out pose.
+SKIN_GREEN = palette("#4f9138", "#346d27", "#22501a", "#0b1f08")
+CROWN = palette("#f6e44c", "#e4cc38", "#b49a1c", "#3d2f04")
+SUIT = palette("#2c2c2c", "#151515", "#0b0b0b", "#08200c")
+SHIRT = palette("#ffffff", "#ececec", "#c4c4c4", "#08200c")
+
 TOTEM_ROWS = [
     "................",
-    ".....oooooo.....",
-    "....oLLLLLMo....",
-    "....oLeLLeMo....",
-    "....oLLLLLMo....",
-    "....oMoDDoMo....",
-    "..ooooMMMMoooo..",
-    ".oLLLLGEEGLLLMo.",
-    ".oMMoLGeeGMoDDo.",
-    "..oo.oLMMMo.oo..",
-    ".....oLGGMo.....",
-    ".....oLMMMo.....",
-    ".....oLMMMo.....",
-    ".....oMooMo.....",
-    ".....oo..oo.....",
+    ".....Y.YY.Y.....",
+    "....YPYNBYRY....",
+    "....LGGGGGGD....",
+    "....LKKGGKKD....",
+    "....LKKGGKKD....",
+    "....LGGGGGGD....",
+    "....LGKKKKGD....",
+    "......WTTW......",
+    ".HWSSSSTTSSSSWH.",
+    ".HWSSSSUTSSSSWH.",
+    ".....SsSSSS.....",
+    ".....SsUSSS.....",
+    ".....Ss..SS.....",
+    ".....SS..SS.....",
     "................",
 ]
+
+TOTEM_CODES = {
+    "Y": (CROWN["mid"], CROWN), "y": (CROWN["dark"], CROWN),
+    "P": (rgba("#c63ad6"), CROWN), "N": (rgba("#3cc43c"), CROWN),
+    "B": (rgba("#2e6fe0"), CROWN), "R": (rgba("#f07060"), CROWN),
+    "L": (SKIN_GREEN["light"], SKIN_GREEN), "G": (SKIN_GREEN["mid"], SKIN_GREEN),
+    "D": (SKIN_GREEN["dark"], SKIN_GREEN), "K": (rgba("#0d1a0b"), SKIN_GREEN),
+    "H": (SKIN_GREEN["mid"], SKIN_GREEN),
+    "W": (SHIRT["mid"], SHIRT), "T": (rgba("#8c1414"), SHIRT), "U": (rgba("#dcd43c"), SUIT),
+    "S": (SUIT["mid"], SUIT), "s": (SUIT["light"], SUIT),
+}
+
+
+def totem():
+    return from_ascii(TOTEM_ROWS, SUIT, extra=TOTEM_CODES).outline()
 
 GOLDEN_APPLE_ROWS = [
     "................",
@@ -776,6 +805,116 @@ def shield():
     return img
 
 
+
+# --------------------------------------------------------------------------
+# Animations (vertical frame strips + .png.mcmeta, no mods needed)
+# --------------------------------------------------------------------------
+
+FRAME_TIME = 2  # game ticks per frame; the game interpolates between frames
+
+
+def mix(color, target, amount):
+    amount = max(0.0, min(1.0, amount))
+    return tuple(round(c + (t - c) * amount) for c, t in zip(color[:3], target[:3])) + (color[3],)
+
+
+def render_strip(sprite, frames, effect, extra=None):
+    """Renders `frames` frames stacked vertically. effect(f, x, y, color, pal)
+    recolors existing pixels; extra(f) can add pixels such as sparks."""
+    strip = Image.new("RGBA", (sprite.w, sprite.h * frames), (0, 0, 0, 0))
+    for f in range(frames):
+        for (x, y), (color, pal) in sprite.px.items():
+            strip.putpixel((x, y + f * sprite.h), effect(f, x, y, color, pal))
+        for (x, y), color in (extra(f) if extra else {}).items():
+            strip.putpixel((x, y + f * sprite.h), color)
+    return strip
+
+
+NEUTRAL = (HANDLE, POMMEL, STRING)
+
+
+def weapon_glint(frames=24):
+    """A green glint sweeps along the weapon (bottom-left to top-right), then
+    the emeralds and vines pulse while it waits to sweep again. Material
+    pixels only pick up green inside the moving band, so the material color
+    stays readable for most of the cycle."""
+    sweep_frames = frames * 0.6
+
+    def effect(f, x, y, color, pal):
+        s = x - y
+        band = 0.0
+        if f < sweep_frames:
+            center = -20 + 40 * f / sweep_frames
+            band = max(0.0, 1.0 - abs(s - center) / 3.5)
+        pulse = 0.5 - 0.5 * math.cos(2 * math.pi * f / frames)
+        if pal is GREEN:
+            return mix(color, GREEN["glow"], 0.45 * pulse + 0.5 * band)
+        if pal is OUTLINE:
+            return mix(color, GREEN["mid"], 0.75 * band)
+        if pal is None or pal in NEUTRAL:
+            return mix(color, GREEN["light"], 0.3 * band)
+        return mix(color, GREEN["glow"], 0.65 * band)
+
+    return effect
+
+
+def trident_storm(sprite, frames=32):
+    """Special trident animation: a bolt of green energy climbs the shaft,
+    the prongs flash, sparks crackle around the tips, then it fades into a
+    soft glow."""
+    climb_end, flash_end = 14, 24
+    prongs = [(x, y) for (x, y), (_, pal) in sprite.px.items() if pal is not OUTLINE and x - y >= 7]
+    spark_spots = sorted({
+        (x + dx, y + dy)
+        for x, y in prongs
+        for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2)
+        if 0 <= x + dx < 16 and 0 <= y + dy < 16 and (x + dx, y + dy) not in sprite.px
+    })
+
+    def effect(f, x, y, color, pal):
+        s = x - y
+        if f < climb_end:
+            head = -14 + 27 * f / (climb_end - 1)
+            if s > head + 1.5:
+                glow = 0.0
+            elif s >= head - 1.5:
+                glow = 0.9
+            else:
+                glow = max(0.0, 0.5 * (1 - (head - s) / 7))  # fading trail
+        elif f < flash_end:
+            decay = 1 - (f - climb_end) / (flash_end - climb_end)
+            glow = (0.7 if s >= 5 else 0.3) * decay
+        else:
+            glow = 0.15 + 0.1 * math.sin(math.pi * (f - flash_end) / (frames - flash_end))
+        target = GREEN["mid"] if pal is OUTLINE else GREEN["glow"]
+        return mix(color, target, glow)
+
+    def sparks(f):
+        if not climb_end <= f < flash_end:
+            return {}
+        rng = random.Random(f"trident-spark-{f}")
+        count = 5 if f < climb_end + 4 else 2
+        chosen = rng.sample(spark_spots, min(count, len(spark_spots)))
+        return {p: (GREEN["glow"] if i % 2 == 0 else GREEN["light"]) for i, p in enumerate(chosen)}
+
+    return render_strip(sprite, frames, effect, sparks)
+
+
+def totem_aura(frames=24):
+    """The totem's outline breathes green; the crown gems twinkle in turn."""
+    gems = [(5, 2), (7, 2), (8, 2), (10, 2)]  # P, N, B, R in TOTEM_ROWS
+
+    def effect(f, x, y, color, pal):
+        phase = 2 * math.pi * f / frames
+        if pal is OUTLINE:
+            return mix(color, GREEN["light"], 0.5 - 0.5 * math.cos(phase))
+        if (x, y) in gems:
+            lit = gems.index((x, y)) == (f * len(gems)) // frames
+            return mix(color, (255, 255, 255, 255), 0.55 if lit else 0.0)
+        return color
+
+    return effect
+
 # --------------------------------------------------------------------------
 # Output
 # --------------------------------------------------------------------------
@@ -796,18 +935,27 @@ def build(root: Path) -> dict[str, Image.Image]:
         items[name] = img
         save(img, root, f"{item_dir}{name}.png")
 
+    def animated(name, strip):
+        """Saves an animated texture; previews get the first frame and the strip."""
+        items[name] = strip.crop((0, 0, 16, 16))
+        items[f"anim:{name}"] = strip
+        save(strip, root, f"{item_dir}{name}.png")
+        meta = {"animation": {"frametime": FRAME_TIME, "interpolate": True}}
+        (root / f"{item_dir}{name}.png.mcmeta").write_text(json.dumps(meta, indent=2) + "\n")
+
+    glint = weapon_glint()
     for material, pal in TOOL.items():
-        item(f"{material}_sword", sword(pal).image())
-        item(f"{material}_axe", axe(pal).image())
-    item("mace", mace().image())
-    item("trident", trident().image())
-    item("bow", bow(None).image())
+        animated(f"{material}_sword", render_strip(sword(pal), 24, glint))
+        animated(f"{material}_axe", render_strip(axe(pal), 24, glint))
+    animated("mace", render_strip(mace(), 24, glint))
+    animated("trident", trident_storm(trident()))
+    animated("bow", render_strip(bow(None), 24, glint))
     for i in range(3):
-        item(f"bow_pulling_{i}", bow(i).image())
+        animated(f"bow_pulling_{i}", render_strip(bow(i), 24, glint))
     for state in ("standby", "pulling_0", "pulling_1", "pulling_2", "arrow", "firework"):
-        item(f"crossbow_{state}", crossbow(state).image())
+        animated(f"crossbow_{state}", render_strip(crossbow(state), 24, glint))
     item("arrow", arrow().image())
-    item("totem_of_undying", from_ascii(TOTEM_ROWS, TOTEM).image())
+    animated("totem_of_undying", render_strip(totem(), 24, totem_aura()))
     item("golden_apple", from_ascii(GOLDEN_APPLE_ROWS, TOOL["golden"]).image())
     item("ender_pearl", from_ascii(ENDER_PEARL_ROWS, PEARL).image())
 
@@ -843,7 +991,7 @@ def build(root: Path) -> dict[str, Image.Image]:
 
     save(shield(), root, "assets/minecraft/textures/entity/shield_base_nopattern.png")
 
-    icon = items["iron_sword"].resize((64, 64), Image.NEAREST)
+    icon = items["iron_sword"].resize((64, 64), Image.NEAREST)  # first frame
     save(icon, root, "pack.png")
     mcmeta = {
         "pack": {

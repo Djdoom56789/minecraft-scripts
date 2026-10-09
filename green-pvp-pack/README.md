@@ -7,15 +7,34 @@ crossguard and pommel set with an emerald.
 
 ![All textures](preview.png)
 
+![Animations](preview-animations.gif)
+
 ## What's included
 
 | Group | Items |
 | --- | --- |
 | Swords and axes | wooden, stone, iron, golden, diamond, netherite |
 | Other weapons | mace, trident (inventory icon), bow (+3 pull stages), crossbow (standby, 3 pull stages, loaded arrow, loaded firework), arrow, shield |
-| Consumables | totem of undying, golden apple (the enchanted one uses the same texture), ender pearl |
+| Totem | totem of undying drawn from the player skin: crown with gems, green face, black suit, red tie, green hands |
+| Consumables | golden apple (the enchanted one uses the same texture), ender pearl |
 | Armor icons | leather (dyeable, green parts stay green), chainmail, iron, golden, diamond, netherite |
 | Worn armor | all six materials, for both 1.21.1 and 1.21.2+ texture paths |
+
+## Animations
+
+All animations use the game's built-in animated textures (`.png.mcmeta`), so they work
+without mods or OptiFine.
+
+- **Swords, axes, mace, bow and crossbow:** a green glint sweeps from the handle to the
+  tip, then the emeralds and vines pulse until the next sweep (2.4 second loop). The
+  glint only covers a narrow band, so the material color shows most of the time.
+- **Trident (special):** a bolt of green energy climbs the shaft, the prongs flash,
+  sparks crackle around the tips, and then it settles into a soft glow (3.2 second loop).
+- **Totem:** its outline breathes green, and the four crown gems twinkle in turn. The
+  animation also plays in the totem pop when it saves you.
+
+Animated textures show in the inventory, in your hand and on dropped items. The thrown or
+held 3D trident model uses an entity texture, which the game can't animate.
 
 ## Telling gear apart
 

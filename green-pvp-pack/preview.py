@@ -91,6 +91,33 @@ def main(out_path):
                               (12 + c * CELL + (CELL - fig_w) // 2, y))
     sheet.save(out_path)
     print(f"Wrote {out_path}")
+    animation_gif(items, str(Path(out_path).with_name("preview-animations.gif")))
+
+
+def animation_gif(items, out_path):
+    """Loops every animated texture together (without the game's frame interpolation)."""
+    names = [k[len("anim:"):] for k in items if k.startswith("anim:")]
+    order = ["totem_of_undying", "trident"] + [n for n in names if n.endswith("_sword")] + \
+            [n for n in names if n.endswith("_axe")] + ["mace", "bow", "bow_pulling_2", "crossbow_arrow"]
+    names = [n for n in order if f"anim:{n}" in items]
+    strips = {n: items[f"anim:{n}"] for n in names}
+    counts = {n: s.height // 16 for n, s in strips.items()}
+    total = 1
+    for c in counts.values():
+        total = total * c // __import__("math").gcd(total, c)
+    scale, cols = 5, 6
+    cell = 16 * scale + 8
+    rows = (len(names) + cols - 1) // cols
+    frames = []
+    for f in range(total):
+        frame = Image.new("RGBA", (cols * cell, rows * cell), BACKGROUND)
+        for i, n in enumerate(names):
+            k = f % counts[n]
+            sprite = strips[n].crop((0, 16 * k, 16, 16 * k + 16)).resize((16 * scale, 16 * scale), Image.NEAREST)
+            frame.alpha_composite(sprite, ((i % cols) * cell + 4, (i // cols) * cell + 4))
+        frames.append(frame.convert("RGB"))
+    frames[0].save(out_path, save_all=True, append_images=frames[1:], duration=100, loop=0)
+    print(f"Wrote {out_path} ({total} frames)")
 
 
 if __name__ == "__main__":
