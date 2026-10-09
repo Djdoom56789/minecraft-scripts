@@ -98,6 +98,10 @@ def to_green(rgba: np.ndarray, lean: float) -> np.ndarray:
 
     offset = (hue - GREEN_HUE + 0.5) % 1.0 - 0.5
     hue = (GREEN_HUE + offset * (1.0 - lean)) % 1.0
+    # Magenta sits opposite green, where the squeeze would split neighbouring
+    # purples into orange and blue; fade saturation at that seam instead.
+    seam = np.clip((np.abs(offset) - 0.40) / 0.10, 0.0, 1.0)
+    sat = sat * (1.0 - 0.75 * seam * seam * (3 - 2 * seam))
     sat = np.maximum(sat, GRAY_CAST * min(1.0, lean * 2))
 
     q = np.where(light < 0.5, light * (1 + sat), light + sat - light * sat)
@@ -164,10 +168,13 @@ def build(jar: Path, custom: Path, out: Path) -> dict[str, int]:
             stats["recolored"] += 1
 
         for rel, path in sorted(custom_files.items()):
+            if rel.startswith("green_world_"):
+                continue  # textures are already green; the live shader would double it
             data = path.read_bytes()
             if rel == "pack.mcmeta":
                 meta = json.loads(data)
                 meta["pack"]["description"] = "Green Everything: the whole game in green"
+                meta.pop("overlays", None)
                 data = (json.dumps(meta, indent=2) + "\n").encode()
             dst.writestr(rel, data)
             stats["custom"] += 1

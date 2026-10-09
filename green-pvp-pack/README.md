@@ -1,16 +1,18 @@
-# Green PvP resource pack (+ Green Everything)
+# Green PvP resource pack
 
-Vine-forged, green-themed textures for PvP gear, designed to pair with
-[Green Shaders](../green-shaders/). There are two ways to use it:
+One resource pack that turns the whole game green: drop `GreenPvP.zip` into
+`.minecraft/resourcepacks/` and turn it on. No mods, OptiFine, Iris or setup needed.
 
-| Pack | What's green | How to get it |
-| --- | --- | --- |
-| **GreenPvP.zip** | The hand-made textures listed below | Ready to use: `dist/GreenPvP.zip` |
-| **GreenEverything.zip** | Every item, block, particle and mob in the game, plus everything in GreenPvP | Build it on your computer from your own game files with `greenify` (see below) |
+- **The whole world is green** (on 1.21 and 1.21.1): every block, item, mob, particle,
+  the sky, clouds and beacon beams. See [Green World](#green-world).
+- **Hand-made, animated green textures** for weapons, armor, elytra, the totem (drawn from
+  the player skin), end crystals and obsidian. Swords follow the reference design: a blade
+  in the material's own color with a dark fuller, a dark wrapped handle, and a green vine
+  crossguard and pommel set with an emerald.
+- **Everything stays tellable apart:** materials keep their brightness and relative
+  colors, and potions keep their effect colors.
 
- Swords follow the reference design: a blade in the
-material's own color with a dark fuller, a dark wrapped handle, and a green vine
-crossguard and pommel set with an emerald.
+It pairs with [Green Shaders](../green-shaders/), but doesn't need it.
 
 ![All textures](preview.png)
 
@@ -53,21 +55,41 @@ on placed blocks. Worn armor, the elytra wings, the placed end crystal and the 3
 use entity textures, which the game can't animate, so those are drawn green but stay still.
 The placed end crystal already spins and bobs on its own.
 
-## Green Everything
+## Green World
 
-`greenify.py` makes every texture in the game green, then puts the hand-made textures on
-top. Mojang's textures can't be shared, so it runs on your computer and reads them from
-your own copy of the game.
+The pack replaces one of Minecraft's built-in shader files, `shaders/include/fog.glsl`.
+Every world shader in 1.21 and 1.21.1 runs its `linear_fog` function last, so grading
+the color there turns everything green. The source is in
+[`world_shader/fog.glsl`](world_shader/fog.glsl).
+
+- Colors are squeezed toward green, not painted over, and brightness never changes. Red
+  becomes yellow-green, blue becomes teal, grays get a green tint, and white stays white,
+  so a diamond ore still looks different from an emerald ore. Purples, which sit
+  opposite green, turn a soft gray-green.
+- It also tints chat and name-tag text slightly; team colors stay distinct from each other.
+- The strength is `GW_LEAN` in `fog.glsl` (0.4 by default).
+- It only loads on Minecraft 1.21 and 1.21.1 (it's in a pack overlay for format 34). On
+  other versions the pack still loads with all the hand-made textures; use `greenify`
+  below for the rest.
+- With an OptiFine or Iris shader pack active, the game ignores resource-pack shaders, and
+  the shader pack (like Green Shaders) does the coloring instead.
+
+## Green Everything (optional, for other versions)
+
+You don't need this on 1.21.1; GreenPvP.zip already turns everything green there.
+`greenify.py` bakes the same effect into the textures themselves, for versions the
+shader doesn't support. Mojang's textures can't be shared, so it runs on your computer
+and reads them from your own copy of the game.
 
 1. Unzip `dist/GreenEverything-builder.zip` anywhere (it holds `greenify.py`, the
    launchers and the hand-made textures).
-2. Launch Minecraft 1.21.1 once with the official launcher, so the game files exist.
+2. Launch your Minecraft version once with the official launcher, so the game files exist.
 3. Install [Python 3](https://www.python.org/downloads/). On Windows, tick
    **Add Python to PATH**.
 4. Run it from the unzipped folder:
    - **Windows:** double-click `greenify.bat`
    - **macOS/Linux:** `./greenify.sh`
-   - Other versions: `greenify.bat --version 1.21.4` (or `./greenify.sh --version 1.21.4`)
+   - Pick the version: `greenify.bat --version 1.21.4` (or `./greenify.sh --version 1.21.4`)
 5. Put the `dist/GreenEverything.zip` it creates (inside the unzipped folder) into
    `.minecraft/resourcepacks/`, and use it **instead of** GreenPvP.zip.
 
@@ -97,10 +119,10 @@ How strongly each kind of texture turns green is set in `LEAN` at the top of `gr
 
 ## Install
 
-1. Use `dist/GreenPvP.zip` (build it with `./build.sh`, which needs Python 3 and Pillow),
-   or zip the *contents* of `pack/` so that `pack.mcmeta` sits at the root of the zip.
-2. Put the zip in `.minecraft/resourcepacks/` and enable it under
-   **Options → Resource Packs**.
+1. Put `dist/GreenPvP.zip` in `.minecraft/resourcepacks/`. Don't unzip it.
+2. Enable it under **Options → Resource Packs**.
+
+To rebuild it after changing `generate.py`, run `./build.sh` (needs Python 3 and Pillow).
 
 The pack targets Minecraft 1.21.1 (pack format 34) and declares support up to format 64.
 On newer versions the game marks it "made for an older version", but it still loads
@@ -113,7 +135,9 @@ Change palettes (`TOOL`, `ARMOR`, `GREEN`), the armor green lean, or shapes, the
 `./build.sh`. `preview.py` renders `preview.png`, which shows every icon plus a front view
 of each worn armor set.
 
-## Not covered by GreenPvP.zip
+## Not covered
 
-- In GreenPvP.zip, the thrown or held 3D trident, the turtle helmet and tools other than
-  axes keep their vanilla look. GreenEverything.zip makes all of those green too.
+- Worn armor, elytra wings, the placed end crystal and the 3D trident are green but
+  don't animate (the game can't animate textures drawn on bodies).
+- On versions other than 1.21/1.21.1, only the hand-made textures are green; use
+  `greenify` for the rest.

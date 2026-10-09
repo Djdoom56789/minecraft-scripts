@@ -26,6 +26,7 @@ import colorsys
 import json
 import math
 import random
+import shutil
 import sys
 from pathlib import Path
 
@@ -812,6 +813,8 @@ def shield():
 # Animations (vertical frame strips + .png.mcmeta, no mods needed)
 # --------------------------------------------------------------------------
 
+WORLD_OVERLAY = "green_world_1_21_1"
+
 FRAME_TIME = 2  # game ticks per frame; the game interpolates between frames
 
 
@@ -1236,12 +1239,23 @@ def build(root: Path) -> dict[str, Image.Image]:
 
     icon = items["iron_sword"].resize((64, 64), Image.NEAREST)  # first frame
     save(icon, root, "pack.png")
+    # Green World: a replacement fog.glsl that grades every world shader
+    # green. Shader code changes between versions, so it lives in an overlay
+    # that only loads on 1.21/1.21.1 (format 34); other versions still get
+    # every texture above.
+    world_dir = root / WORLD_OVERLAY / "assets/minecraft/shaders/include"
+    world_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(Path(__file__).parent / "world_shader" / "fog.glsl", world_dir / "fog.glsl")
+
     mcmeta = {
         "pack": {
             "pack_format": 34,
             "supported_formats": {"min_inclusive": 34, "max_inclusive": 64},
-            "description": "Green PvP: vine-forged weapons & armor",
-        }
+            "description": "Green PvP: the whole game in green, vine-forged gear",
+        },
+        "overlays": {
+            "entries": [{"formats": {"min_inclusive": 34, "max_inclusive": 34}, "directory": WORLD_OVERLAY}]
+        },
     }
     (root / "pack.mcmeta").write_text(json.dumps(mcmeta, indent=2) + "\n")
     return items

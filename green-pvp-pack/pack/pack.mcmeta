@@ -5,6 +5,17 @@
       "min_inclusive": 34,
       "max_inclusive": 64
     },
-    "description": "Green PvP: vine-forged weapons & armor"
+    "description": "Green PvP: the whole game in green, vine-forged gear"
+  },
+  "overlays": {
+    "entries": [
+      {
+        "formats": {
+          "min_inclusive": 34,
+          "max_inclusive": 34
+        },
+        "directory": "green_world_1_21_1"
+      }
+    ]
   }
 }
