@@ -15,7 +15,7 @@ Design rules, so PvP gear stays readable at a glance:
   * Animations (green glint on weapons, lightning on the trident, aura on
     the totem) only add green on top for part of each loop.
 
-Usage: python3 generate.py [output_dir]   (default: ./pack)
+Usage: python3 generate.py [output_dir] [26.3|1.21.1]   (default: ./pack 26.3)
 To make the rest of the game green as well, see greenify.py.
 Requires Pillow.
 """
@@ -813,8 +813,6 @@ def shield():
 # Animations (vertical frame strips + .png.mcmeta, no mods needed)
 # --------------------------------------------------------------------------
 
-WORLD_OVERLAY = "green_world_1_21_1"
-
 FRAME_TIME = 2  # game ticks per frame; the game interpolates between frames
 
 
@@ -1158,8 +1156,16 @@ def save(img, root: Path, rel: str):
     img.save(path)
 
 
-def build(root: Path) -> dict[str, Image.Image]:
-    """Writes the pack under root and returns the item images for previews."""
+# Supported game versions. Texture locations, pack metadata and shader code
+# differ between them, so each gets its own zip.
+TARGETS = ("26.3", "1.21.1")
+
+
+def build(root: Path, target: str = "26.3") -> dict[str, Image.Image]:
+    """Writes the pack for `target` under root and returns the item images
+    for previews."""
+    assert target in TARGETS, target
+    legacy = target == "1.21.1"
     items: dict[str, Image.Image] = {}
     item_dir = "assets/minecraft/textures/item/"
 
@@ -1189,7 +1195,8 @@ def build(root: Path) -> dict[str, Image.Image]:
     item("arrow", arrow().image())
     animated("totem_of_undying", render_strip(totem(), 24, totem_aura()))
     animated("elytra", render_strip(elytra_icon(), 24, glint))
-    item("broken_elytra", broken_elytra_icon())
+    item("broken_elytra" if legacy else "elytra_broken", broken_elytra_icon())
+    items["broken_elytra"] = items.get("broken_elytra") or items["elytra_broken"]
     animated("end_crystal", render_strip(end_crystal_icon(), 24, end_crystal_spin()))
     item("golden_apple", from_ascii(GOLDEN_APPLE_ROWS, TOOL["golden"]).image())
     item("ender_pearl", from_ascii(ENDER_PEARL_ROWS, PEARL).image())
@@ -1210,27 +1217,30 @@ def build(root: Path) -> dict[str, Image.Image]:
         else:
             l1, l2 = armor_layers(material, pal)
             o1 = o2 = None
-        # 1.21.1 and earlier
-        save(l1, root, f"assets/minecraft/textures/models/armor/{worn}_layer_1.png")
-        save(l2, root, f"assets/minecraft/textures/models/armor/{worn}_layer_2.png")
-        # 1.21.2 and later
-        save(l1, root, f"assets/minecraft/textures/entity/equipment/humanoid/{worn}.png")
-        save(l2, root, f"assets/minecraft/textures/entity/equipment/humanoid_leggings/{worn}.png")
-        if o1 is not None:
-            save(o1, root, f"assets/minecraft/textures/models/armor/{worn}_layer_1_overlay.png")
-            save(o2, root, f"assets/minecraft/textures/models/armor/{worn}_layer_2_overlay.png")
-            save(o1, root, f"assets/minecraft/textures/entity/equipment/humanoid/{worn}_overlay.png")
-            save(o2, root, f"assets/minecraft/textures/entity/equipment/humanoid_leggings/{worn}_overlay.png")
+        if legacy:
+            save(l1, root, f"assets/minecraft/textures/models/armor/{worn}_layer_1.png")
+            save(l2, root, f"assets/minecraft/textures/models/armor/{worn}_layer_2.png")
+            if o1 is not None:
+                save(o1, root, f"assets/minecraft/textures/models/armor/{worn}_layer_1_overlay.png")
+                save(o2, root, f"assets/minecraft/textures/models/armor/{worn}_layer_2_overlay.png")
+        else:
+            save(l1, root, f"assets/minecraft/textures/entity/equipment/humanoid/{worn}.png")
+            save(l2, root, f"assets/minecraft/textures/entity/equipment/humanoid_leggings/{worn}.png")
+            if o1 is not None:
+                save(o1, root, f"assets/minecraft/textures/entity/equipment/humanoid/{worn}_overlay.png")
+                save(o2, root, f"assets/minecraft/textures/entity/equipment/humanoid_leggings/{worn}_overlay.png")
         items[f"worn:{material}"] = (l1, l2, o1, o2)
 
-    save(shield(), root, "assets/minecraft/textures/entity/shield_base_nopattern.png")
+    entity_dir = "assets/minecraft/textures/entity/"
+    save(shield(), root, entity_dir + ("shield_base_nopattern.png" if legacy else "shield/shield_base_nopattern.png"))
 
     wings = elytra_entity()
-    save(wings, root, "assets/minecraft/textures/entity/elytra.png")  # 1.21.1
-    save(wings, root, "assets/minecraft/textures/entity/equipment/wings/elytra.png")  # 1.21.2+
+    save(wings, root, entity_dir + ("elytra.png" if legacy else "equipment/wings/elytra.png"))
     items["entity:elytra"] = wings
     crystal = end_crystal_entity()
-    save(crystal, root, "assets/minecraft/textures/entity/end_crystal/end_crystal.png")
+    # 26.x ships this texture at double resolution; UVs are relative, so the
+    # 2x version also works on 1.21.1.
+    save(crystal.resize((128, 64), Image.NEAREST), root, entity_dir + "end_crystal/end_crystal.png")
     items["entity:end_crystal"] = crystal
 
     block_dir = "assets/minecraft/textures/block/"
@@ -1240,28 +1250,33 @@ def build(root: Path) -> dict[str, Image.Image]:
     icon = items["iron_sword"].resize((64, 64), Image.NEAREST)  # first frame
     save(icon, root, "pack.png")
     # Green World: a replacement fog.glsl that grades every world shader
-    # green. Shader code changes between versions, so it lives in an overlay
-    # that only loads on 1.21/1.21.1 (format 34); other versions still get
-    # every texture above.
-    world_dir = root / WORLD_OVERLAY / "assets/minecraft/shaders/include"
-    world_dir.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(Path(__file__).parent / "world_shader" / "fog.glsl", world_dir / "fog.glsl")
-
-    mcmeta = {
-        "pack": {
-            "pack_format": 34,
-            "supported_formats": {"min_inclusive": 34, "max_inclusive": 64},
-            "description": "Green PvP: the whole game in green, vine-forged gear",
-        },
-        "overlays": {
-            "entries": [{"formats": {"min_inclusive": 34, "max_inclusive": 34}, "directory": WORLD_OVERLAY}]
-        },
-    }
+    # green. Shader code differs per version, so each target gets its own.
+    fog = Path(__file__).parent / "world_shader" / target / "fog.glsl"
+    description = "Green PvP: the whole game in green, vine-forged gear"
+    if legacy:
+        # Overlay so a 1.21.1 pack loaded on another version still gets the
+        # textures without a mismatched shader.
+        overlay = "green_world_1_21_1"
+        shader_dir = root / overlay / "assets/minecraft/shaders/include"
+        mcmeta = {
+            "pack": {
+                "pack_format": 34,
+                "supported_formats": {"min_inclusive": 34, "max_inclusive": 64},
+                "description": description,
+            },
+            "overlays": {"entries": [{"formats": {"min_inclusive": 34, "max_inclusive": 34}, "directory": overlay}]},
+        }
+    else:
+        shader_dir = root / "assets/minecraft/shaders/include"
+        mcmeta = {"pack": {"description": description, "min_format": 97, "max_format": 97}}
+    shader_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(fog, shader_dir / "fog.glsl")
     (root / "pack.mcmeta").write_text(json.dumps(mcmeta, indent=2) + "\n")
     return items
 
 
 if __name__ == "__main__":
     out = Path(sys.argv[1] if len(sys.argv) > 1 else Path(__file__).parent / "pack")
-    build(out)
+    target = sys.argv[2] if len(sys.argv) > 2 else TARGETS[0]
+    build(out, target)
     print(f"Wrote pack to {out}")

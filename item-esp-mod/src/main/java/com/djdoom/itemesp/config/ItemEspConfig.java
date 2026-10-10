@@ -5,8 +5,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
 import net.fabricmc.loader.api.FabricLoader;
-import net.minecraft.item.Item;
-import net.minecraft.registry.Registries;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.world.item.Item;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -41,7 +41,7 @@ public final class ItemEspConfig {
     public boolean hud = true;
     public boolean throughWalls = true;
     public boolean showScanArea = false;
-    public ColorMode colorMode = ColorMode.RARITY;
+    public ColorMode colorMode = ColorMode.ITEM;
     public int chunkRadius = 4;
     public int maxItems = 256;
     public int minCount = 1;
@@ -102,16 +102,20 @@ public final class ItemEspConfig {
     }
 
     public boolean isTracked(Item item) {
-        return !ignoredItems.contains(Registries.ITEM.getId(item).toString());
+        return !ignoredItems.contains(itemId(item));
     }
 
     public void setTracked(Item item, boolean tracked) {
-        String id = Registries.ITEM.getId(item).toString();
+        String id = itemId(item);
         if (tracked) {
             ignoredItems.remove(id);
         } else {
             ignoredItems.add(id);
         }
+    }
+
+    public static String itemId(Item item) {
+        return BuiltInRegistries.ITEM.getKey(item).toString();
     }
 
     /** Clamps values from hand-edited or older config files into valid ranges. */
@@ -123,7 +127,7 @@ public final class ItemEspConfig {
         hudLines = clamp(hudLines, 0, 20);
         lineWidth = Math.max(1.0f, Math.min(5.0f, lineWidth));
         if (colorMode == null) {
-            colorMode = ColorMode.RARITY;
+            colorMode = ColorMode.ITEM;
         }
         if (ignoredItems == null) {
             ignoredItems = new LinkedHashSet<>();

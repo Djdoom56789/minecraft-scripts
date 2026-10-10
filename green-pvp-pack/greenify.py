@@ -12,9 +12,9 @@ Textures whose color carries meaning, or that the game tints itself, are left
 alone (see SKIP below).
 
 Usage:
-    python3 greenify.py                       # finds .minecraft, uses 1.21.1
+    python3 greenify.py                       # finds .minecraft, uses 26.3
     python3 greenify.py --version 1.21.4
-    python3 greenify.py --jar path/to/1.21.1.jar --out GreenEverything.zip
+    python3 greenify.py --jar path/to/26.3.jar --out GreenEverything.zip
 
 Requires Python 3.9+, Pillow and numpy (pip install pillow numpy).
 """
@@ -168,7 +168,7 @@ def build(jar: Path, custom: Path, out: Path) -> dict[str, int]:
             stats["recolored"] += 1
 
         for rel, path in sorted(custom_files.items()):
-            if rel.startswith("green_world_"):
+            if rel.startswith("green_world_") or rel.startswith("assets/minecraft/shaders/"):
                 continue  # textures are already green; the live shader would double it
             data = path.read_bytes()
             if rel == "pack.mcmeta":
@@ -183,16 +183,19 @@ def build(jar: Path, custom: Path, out: Path) -> dict[str, int]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--version", default="1.21.1", help="Minecraft version to read (default 1.21.1)")
+    parser.add_argument("--version", default="26.3", help="Minecraft version to read (default 26.3)")
     parser.add_argument("--minecraft-dir", type=Path, default=default_minecraft_dir(),
                         help="your .minecraft folder (found automatically)")
     parser.add_argument("--jar", type=Path, help="path to the client jar, instead of --version/--minecraft-dir")
-    parser.add_argument("--custom", type=Path, default=HERE / "pack",
-                        help="hand-made Green PvP textures to put on top (default: ./pack)")
+    parser.add_argument("--custom", type=Path,
+                        help="hand-made Green PvP textures to put on top "
+                             "(default: ./pack-1.21.1 for 1.21.x, otherwise ./pack)")
     parser.add_argument("--out", type=Path, default=HERE / "dist" / "GreenEverything.zip")
     args = parser.parse_args()
 
     jar = args.jar or args.minecraft_dir / "versions" / args.version / f"{args.version}.jar"
+    if args.custom is None:
+        args.custom = HERE / ("pack-1.21.1" if args.version.startswith("1.21") else "pack")
     if not jar.is_file():
         print(f"Can't find the Minecraft jar at {jar}.\n"
               f"Launch Minecraft {args.version} once from the official launcher so it downloads, "

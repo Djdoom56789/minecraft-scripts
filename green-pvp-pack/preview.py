@@ -59,7 +59,8 @@ def front_view(layer1, layer2, overlay1=None, overlay2=None, tint_rgb=None):
 
 
 def main(out_path):
-    items = generate.build(Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).parent / "pack")
+    items = generate.build(Path(sys.argv[2]) if len(sys.argv) > 2 else Path(__file__).parent / "pack",
+                           sys.argv[3] if len(sys.argv) > 3 else generate.TARGETS[0])
     rows = [
         [f"{m}_sword" for m in generate.TOOL],
         [f"{m}_axe" for m in generate.TOOL],

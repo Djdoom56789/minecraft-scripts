@@ -3,7 +3,12 @@
 One resource pack that turns the whole game green: drop `GreenPvP.zip` into
 `.minecraft/resourcepacks/` and turn it on. No mods, OptiFine, Iris or setup needed.
 
-- **The whole world is green** (on 1.21 and 1.21.1): every block, item, mob, particle,
+| Zip | For |
+| --- | --- |
+| `dist/GreenPvP.zip` | **Minecraft 26.3** |
+| `dist/GreenPvP-1.21.1.zip` | Minecraft 1.21 / 1.21.1 |
+
+- **The whole world is green:** every block, item, mob, particle,
   the sky, clouds and beacon beams. See [Green World](#green-world).
 - **Hand-made, animated green textures** for weapons, armor, elytra, the totem (drawn from
   the player skin), end crystals and obsidian. Swords follow the reference design: a blade
@@ -58,9 +63,11 @@ The placed end crystal already spins and bobs on its own.
 ## Green World
 
 The pack replaces one of Minecraft's built-in shader files, `shaders/include/fog.glsl`.
-Every world shader in 1.21 and 1.21.1 runs its `linear_fog` function last, so grading
-the color there turns everything green. The source is in
-[`world_shader/fog.glsl`](world_shader/fog.glsl).
+Every world shader runs its fog function last (`apply_fog` in 26.3, `linear_fog` in
+1.21.1), so grading the color there turns everything green. The sources are in
+[`world_shader/26.3/fog.glsl`](world_shader/26.3/fog.glsl) and
+[`world_shader/1.21.1/fog.glsl`](world_shader/1.21.1/fog.glsl); apart from the grading,
+they're identical to the game's own file for that version.
 
 - Colors are squeezed toward green, not painted over, and brightness never changes. Red
   becomes yellow-green, blue becomes teal, grays get a green tint, and white stays white,
@@ -68,15 +75,15 @@ the color there turns everything green. The source is in
   opposite green, turn a soft gray-green.
 - It also tints chat and name-tag text slightly; team colors stay distinct from each other.
 - The strength is `GW_LEAN` in `fog.glsl` (0.4 by default).
-- It only loads on Minecraft 1.21 and 1.21.1 (it's in a pack overlay for format 34). On
-  other versions the pack still loads with all the hand-made textures; use `greenify`
-  below for the rest.
+- Shader code changes between versions, so each zip carries the matching file. The
+  26.3 version was compile-tested against all 17 of the game's 26.3 shader programs that
+  use it (144 variants), and the 1.21.1 version against all 36 of its programs.
 - With an OptiFine or Iris shader pack active, the game ignores resource-pack shaders, and
   the shader pack (like Green Shaders) does the coloring instead.
 
 ## Green Everything (optional, for other versions)
 
-You don't need this on 1.21.1; GreenPvP.zip already turns everything green there.
+You don't need this on 26.3 or 1.21.1; the GreenPvP zips already turn everything green there.
 `greenify.py` bakes the same effect into the textures themselves, for versions the
 shader doesn't support. Mojang's textures can't be shared, so it runs on your computer
 and reads them from your own copy of the game.
@@ -84,6 +91,7 @@ and reads them from your own copy of the game.
 1. Unzip `dist/GreenEverything-builder.zip` anywhere (it holds `greenify.py`, the
    launchers and the hand-made textures).
 2. Launch your Minecraft version once with the official launcher, so the game files exist.
+   (It defaults to 26.3.)
 3. Install [Python 3](https://www.python.org/downloads/). On Windows, tick
    **Add Python to PATH**.
 4. Run it from the unzipped folder:
@@ -124,8 +132,8 @@ How strongly each kind of texture turns green is set in `LEAN` at the top of `gr
 
 To rebuild it after changing `generate.py`, run `./build.sh` (needs Python 3 and Pillow).
 
-The pack targets Minecraft 1.21.1 (pack format 34) and declares support up to format 64.
-On newer versions the game marks it "made for an older version", but it still loads
+`GreenPvP.zip` is pack format 97 (Minecraft 26.3). `GreenPvP-1.21.1.zip` is pack format
+34; on other versions the game marks it "made for an older version", but it still loads
 when you confirm.
 
 ## Customizing
@@ -139,5 +147,5 @@ of each worn armor set.
 
 - Worn armor, elytra wings, the placed end crystal and the 3D trident are green but
   don't animate (the game can't animate textures drawn on bodies).
-- On versions other than 1.21/1.21.1, only the hand-made textures are green; use
-  `greenify` for the rest.
+- On versions other than 26.3 and 1.21/1.21.1, only the hand-made textures are green;
+  use `greenify` for the rest.

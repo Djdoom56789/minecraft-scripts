@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "itemesp",
+  "version": "${version}",
+  "name": "Item ESP",
+  "description": "Highlights every dropped item within an adjustable chunk radius, with boxes, tracers, labels and a HUD list. Single-player worlds only.",
+  "authors": ["djdoom56789"],
+  "environment": "client",
+  "entrypoints": {
+    "client": ["com.djdoom.itemesp.ItemEspClient"]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "~${minecraft_version}",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

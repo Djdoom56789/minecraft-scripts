@@ -1,21 +1,7 @@
 {
   "pack": {
-    "pack_format": 34,
-    "supported_formats": {
-      "min_inclusive": 34,
-      "max_inclusive": 64
-    },
-    "description": "Green PvP: the whole game in green, vine-forged gear"
-  },
-  "overlays": {
-    "entries": [
-      {
-        "formats": {
-          "min_inclusive": 34,
-          "max_inclusive": 34
-        },
-        "directory": "green_world_1_21_1"
-      }
-    ]
+    "description": "Green PvP: the whole game in green, vine-forged gear",
+    "min_format": 97,
+    "max_format": 97
   }
 }
